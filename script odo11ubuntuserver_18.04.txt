@@ -1,0 +1,167 @@
+#INSTALAR ODOO11 EN UBUNTU 18###############
+# Por: Marko A. Caballero Moreno
+# marko.antonio.1.16.92@gmail.com
+#Probado en una instancia AWS 
+#Ubuntu Server 18.04 LTS
+############################################
+
+
+# ingresar como usuario normal ubuntu
+
+	sudo wget https://raw.githubusercontent.com/Yenthe666/InstallScript/11.0/odoo_install.sh
+	sudo vim odoo_install.sh
+	sudo chmod +x odoo_install.sh
+	./odoo_install.sh
+#Verificar funcionamiento de odoo
+	http://[IP ó Dominio]:8069
+
+
+#INSTALAR NGINX
+	sudo su 
+	sudo apt-get update
+	apt -y install nginx
+	systemctl enable nginx
+	sudo ufw app list
+	sudo systemctl restart nginx
+	systemctl status nginx
+#Averiguar Ip Publica
+	sudo apt-get install curl
+	curl -4 icanhazip.com
+
+#INSTALAR CERBOT SSL
+	sudo add-apt-repository ppa:certbot/certbot
+	sudo apt update
+	sudo apt install python-certbot-nginx
+	sudo ufw allow 'Nginx Full'
+	sudo ufw delete allow 'Nginx HTTP'
+	sudo ufw status
+
+#Reemplazar example.com y www.example.com por el nombre de tu dominio, 
+	sudo certbot --nginx -d example.com -d www.example.com
+#Se abrira un asistente, colocar datos personales, escojer al final opcion "1: No redirect"
+#Si todo esta bien aparece un mensaje de congratulations!
+
+#Para renovacion automatica mensual de certificados
+	sudo certbot renew --dry-run
+
+#Reemplazar example.com por cuestion de orden y buenas practicas, colocar el nombre de tu dominio:
+	sudo nano /etc/nginx/sites-available/example.com
+	
+#Pegar la siguiente configuracion siguiente el el editor lo que esta dentro de los guiones:
+
+########OPCIONAL SOLO HTTP Y PROXY INVERSO###################################
+-----------------------------------------------------------
+server {
+    listen 80;
+    server_name orinstruments.pe;
+
+    location / {
+       proxy_pass http://127.0.0.1:8069;
+       proxy_set_header Upgrade $http_upgrade;
+       proxy_set_header Connection "upgrade";
+       proxy_http_version 1.1;
+       proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+
+
+    }
+}
+----------------------------------------------------------
+
+
+########################### FULL HTTPS + PROXY INVERSO########################################
+---------------------------------------------------------------
+#Remplazar "example.com" por el nombre de su dominio configurado 
+upstream oddo {
+    server 127.0.0.1:8069;
+}
+
+upstream odoochat {
+ server 127.0.0.1:8072;
+}
+
+server {
+   listen      80 ;
+
+server_name example.com;
+
+
+    listen 443 ssl http2 default; # managed by Certbot
+
+    ssl_certificate /etc/letsencrypt/live/example.com/fullchain.pem; # man$
+    ssl_certificate_key /etc/letsencrypt/live/example.com/privkey.pem; # m$
+    include /etc/letsencrypt/options-ssl-nginx.conf; # managed by Certbot
+    ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem; # managed by Certbot
+
+
+
+
+   ssl_session_cache shared:SSL:128m;
+    ssl_stapling on;
+    ssl_stapling_verify on;
+    resolver 8.8.8.8;
+
+
+
+    access_log  /var/log/nginx/odoo.com.access.log;
+    error_log   /var/log/nginx/odoo.com.error.log;
+
+
+    proxy_buffers 16 64k;
+    proxy_buffer_size 128k;
+
+
+location /longpolling {
+        proxy_pass http://odoochat;
+    }
+
+
+
+    location / {
+
+
+
+ if ($scheme = http) {
+            return 301 https://$server_name$request_uri;
+        }
+
+        proxy_pass  http://oddo;
+  proxy_next_upstream error timeout invalid_header http_500 http_502 http$
+        proxy_redirect off;
+
+        proxy_set_header    Host            $host;
+        proxy_set_header    X-Real-IP       $remote_addr;
+        proxy_set_header    X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header    X-Forwarded-Proto https;
+    }
+
+
+
+   location ~* /web/static/ {
+        proxy_cache_valid 200 60m;
+        proxy_buffering on;
+        expires 864000;
+        proxy_pass http://oddo;
+    }
+
+gzip_types text/css text/less text/plain text/xml application/xml application/j$
+    gzip on;
+}
+
+
+-------------------------------------------------------------------------------------
+
+rm /etc/nginx/sites-available/default
+rm /etc/nginx/sites-enabled/default
+
+
+#Reemplazar "example.com" por el nombre de su dominio , crea un enlace simbolico del archivo configurado al directorio especificado:
+	ln -s /etc/nginx/sites-available/example.com /etc/nginx/sites-enabled/example.com
+
+#Comprobar sintaxis Nginx
+	sudo nginx -t
+#Recargar Nginx
+	sudo systemctl Restart nginx
+#Ingresar a https://[IP o Dominio]
+
+
+
